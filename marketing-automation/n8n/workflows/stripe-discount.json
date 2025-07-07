@@ -1,0 +1,129 @@
+{
+  "name": "Stripe Discount Code Generator",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "stripe-discount",
+        "options": {}
+      },
+      "id": "webhook",
+      "name": "Campaign Trigger",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [250, 300],
+      "webhookId": "stripe-discount"
+    },
+    {
+      "parameters": {
+        "functionCode": "const campaign = items[0].json.campaign;\nconst config = campaign.workflow_config || {};\n\n// Generate discount code\nconst prefix = config.codePrefix || 'PROMO';\nconst timestamp = new Date().getTime().toString(36).toUpperCase();\nconst code = `${prefix}-${timestamp}`;\n\nreturn [{\n  json: {\n    ...items[0].json,\n    discountCode: code,\n    discountPercent: config.discountPercent || 10,\n    validDays: config.validDays || 30\n  }\n}];"
+      },
+      "id": "function",
+      "name": "Generate Code",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [450, 300]
+    },
+    {
+      "parameters": {
+        "content": "## Stripe API Integration\\n\\nThis would connect to Stripe API to:\\n1. Create a coupon with the discount code\\n2. Set expiration date\\n3. Apply usage limits\\n\\nFor now, this is a simulation.",
+        "height": 200,
+        "width": 400
+      },
+      "id": "stickyNote",
+      "name": "Stripe API",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [650, 150]
+    },
+    {
+      "parameters": {
+        "values": {
+          "string": [
+            {
+              "name": "stripeId",
+              "value": "coupon_sim_{{$now.toUnixInteger()}}"
+            },
+            {
+              "name": "status",
+              "value": "active"
+            }
+          ],
+          "number": [
+            {
+              "name": "usageLimit",
+              "value": 100
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "simulate",
+      "name": "Simulate Stripe Response",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 2,
+      "position": [650, 400]
+    },
+    {
+      "parameters": {
+        "url": "http://backend:8000/api/n8n/campaigns/{{$json[\"campaign\"][\"id\"]}}/complete",
+        "authentication": "none",
+        "httpMethod": "POST",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "status",
+              "value": "completed"
+            },
+            {
+              "name": "result",
+              "value": "={{JSON.stringify({code: $json.discountCode, stripeId: $json.stripeId, percent: $json.discountPercent})}}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "complete",
+      "name": "Complete Campaign",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 3,
+      "position": [850, 300]
+    }
+  ],
+  "connections": {
+    "Campaign Trigger": {
+      "main": [
+        [
+          {
+            "node": "Generate Code",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Generate Code": {
+      "main": [
+        [
+          {
+            "node": "Simulate Stripe Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Simulate Stripe Response": {
+      "main": [
+        [
+          {
+            "node": "Complete Campaign",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  }
+}

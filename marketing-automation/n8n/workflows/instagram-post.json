@@ -1,0 +1,176 @@
+{
+  "name": "Instagram Marketing Post",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "instagram-campaign",
+        "options": {}
+      },
+      "id": "webhook",
+      "name": "Campaign Trigger",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [250, 300],
+      "webhookId": "instagram-campaign"
+    },
+    {
+      "parameters": {
+        "values": {
+          "string": [
+            {
+              "name": "caption",
+              "value": "={{$json[\"campaign\"][\"content\"][\"caption\"]}}"
+            },
+            {
+              "name": "imageUrl",
+              "value": "={{$json[\"campaign\"][\"content\"][\"imageUrl\"]}}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "set",
+      "name": "Prepare Content",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 2,
+      "position": [450, 300]
+    },
+    {
+      "parameters": {
+        "url": "http://backend:8000/api/n8n/campaigns/{{$json[\"campaign\"][\"id\"]}}/log",
+        "authentication": "none",
+        "httpMethod": "POST",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "status",
+              "value": "processing"
+            },
+            {
+              "name": "message",
+              "value": "Starting Instagram post creation"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "http",
+      "name": "Log Status",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 3,
+      "position": [650, 300]
+    },
+    {
+      "parameters": {
+        "content": "## Instagram Post Placeholder\\n\\nThis would connect to Instagram Graph API to:\\n1. Upload image from URL\\n2. Create post with caption\\n3. Schedule or publish immediately\\n\\nFor now, this is a simulation.",
+        "height": 200,
+        "width": 400
+      },
+      "id": "stickyNote",
+      "name": "Instagram API Integration",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [850, 200]
+    },
+    {
+      "parameters": {
+        "values": {
+          "string": [
+            {
+              "name": "postId",
+              "value": "sim_{{$now.toUnixInteger()}}"
+            },
+            {
+              "name": "status",
+              "value": "published"
+            },
+            {
+              "name": "url",
+              "value": "https://instagram.com/p/simulated_post"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "simulate",
+      "name": "Simulate Post",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 2,
+      "position": [850, 400]
+    },
+    {
+      "parameters": {
+        "url": "http://backend:8000/api/n8n/campaigns/{{$json[\"campaign\"][\"id\"]}}/complete",
+        "authentication": "none",
+        "httpMethod": "POST",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "status",
+              "value": "completed"
+            },
+            {
+              "name": "result",
+              "value": "={{JSON.stringify($json)}}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "complete",
+      "name": "Complete Campaign",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 3,
+      "position": [1050, 300]
+    }
+  ],
+  "connections": {
+    "Campaign Trigger": {
+      "main": [
+        [
+          {
+            "node": "Prepare Content",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Content": {
+      "main": [
+        [
+          {
+            "node": "Log Status",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Log Status": {
+      "main": [
+        [
+          {
+            "node": "Simulate Post",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Simulate Post": {
+      "main": [
+        [
+          {
+            "node": "Complete Campaign",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  }
+}

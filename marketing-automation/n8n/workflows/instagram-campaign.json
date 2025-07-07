@@ -1,0 +1,103 @@
+{
+  "name": "Instagram Campaign",
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "webhook",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [250, 300],
+      "webhookId": "instagram-campaign"
+    },
+    {
+      "parameters": {
+        "values": {
+          "string": [
+            {
+              "name": "campaign_name",
+              "value": "={{$json[\"campaign\"][\"name\"]}}"
+            },
+            {
+              "name": "campaign_id",
+              "value": "={{$json[\"campaign\"][\"id\"]}}"
+            },
+            {
+              "name": "execution_id",
+              "value": "={{$json[\"execution_id\"]}}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "set-data",
+      "name": "Set Campaign Data",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 2,
+      "position": [450, 300]
+    },
+    {
+      "parameters": {
+        "url": "={{ $env.BACKEND_URL }}/api/webhooks/campaign-complete",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "execution_id",
+              "value": "={{$node[\"Set Campaign Data\"].json[\"execution_id\"]}}"
+            },
+            {
+              "name": "status",
+              "value": "completed"
+            },
+            {
+              "name": "result",
+              "value": {
+                "message": "Instagram campaign workflow completed",
+                "campaign_id": "={{$node[\"Set Campaign Data\"].json[\"campaign_id\"]}}"
+              }
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "webhook-callback",
+      "name": "Update Campaign Status",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 3,
+      "position": [650, 300]
+    }
+  ],
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Set Campaign Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Set Campaign Data": {
+      "main": [
+        [
+          {
+            "node": "Update Campaign Status",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {},
+  "versionId": "instagram-campaign-v1",
+  "id": "instagram-campaign",
+  "meta": {
+    "instanceId": "instagram-campaign"
+  },
+  "tags": []
+}

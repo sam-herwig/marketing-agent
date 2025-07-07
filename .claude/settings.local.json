@@ -1,0 +1,27 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(mkdir:*)",
+      "Bash(cd:*)",
+      "Bash(docker-compose exec:*)",
+      "Bash(docker-compose restart:*)",
+      "Bash(ls:*)",
+      "Bash(cd:*)",
+      "Bash(cd:*)",
+      "Bash(docker cp:*)",
+      "Bash(rm:*)",
+      "Bash(grep:*)",
+      "Bash(curl:*)",
+      "Bash(docker-compose:*)",
+      "Bash(python:*)",
+      "Bash(docker exec:*)",
+      "Bash(touch:*)",
+      "Bash(npm install:*)",
+      "Bash(find:*)",
+      "Bash(npm run build:*)",
+      "Bash(timeout 10s npm run dev)",
+      "Bash(npm run dev:*)"
+    ],
+    "deny": []
+  }
+}
