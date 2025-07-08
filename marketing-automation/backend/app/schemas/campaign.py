@@ -1,4 +1,4 @@
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, validator
 from typing import Optional, List, Dict, Any
 from datetime import datetime
 from app.models.campaign import CampaignStatus, TriggerType
@@ -62,6 +62,24 @@ class CampaignResponse(CampaignBase):
     updated_at: Optional[datetime] = None
     executed_at: Optional[datetime] = None
     instagram_account: Optional[Dict[str, Any]] = None
+    
+    @validator('instagram_account', pre=True)
+    def serialize_instagram_account(cls, v):
+        if v is None:
+            return None
+        # If it's already a dict, return it
+        if isinstance(v, dict):
+            return v
+        # If it's an InstagramAccount object, serialize it
+        return {
+            "id": v.id,
+            "instagram_user_id": v.instagram_user_id,
+            "instagram_username": v.instagram_username,
+            "instagram_business_account_id": v.instagram_business_account_id,
+            "page_id": v.page_id,
+            "status": v.status.value if hasattr(v.status, 'value') else v.status,
+            "last_synced_at": v.last_synced_at.isoformat() if v.last_synced_at else None
+        }
     
     class Config:
         from_attributes = True

@@ -1,7 +1,8 @@
 import httpx
 import base64
-from typing import Optional, Dict, Tuple
+from typing import Optional, Dict, Tuple, List
 from app.core.config import settings
+from app.services.text_overlay import text_overlay_service, TextConfig
 
 class ImageGenerationService:
     def __init__(self):
@@ -201,5 +202,105 @@ class ImageGenerationService:
         # In production, you might want to download and store the image
         # For now, we'll just return the URL
         return image_url
+    
+    async def generate_with_text_overlay(self, 
+                                       background_prompt: str,
+                                       text_overlays: List[Dict],
+                                       provider: str = "openai") -> Optional[str]:
+        """
+        Generate an image and apply text overlay
+        
+        Args:
+            background_prompt: Prompt for the background image (no text)
+            text_overlays: List of text overlay configurations
+            provider: Image generation provider to use
+            
+        Returns:
+            Base64 encoded image data URL or None if failed
+        """
+        try:
+            # Generate base image without text
+            clean_prompt = background_prompt.replace("text:", "").replace("with text", "")
+            clean_prompt += ". No text or letters in the image."
+            
+            image_url = await self.generate_image(clean_prompt, provider)
+            if not image_url:
+                return None
+            
+            # Convert text overlay dicts to TextConfig objects
+            text_configs = []
+            for overlay in text_overlays:
+                config = TextConfig(
+                    text=overlay.get("text", ""),
+                    position=tuple(overlay.get("position", (512, 512))),
+                    font_size=overlay.get("font_size", 48),
+                    font_color=overlay.get("font_color", "#FFFFFF"),
+                    font_style=overlay.get("font_style", "bold"),
+                    alignment=overlay.get("alignment", "center"),
+                    shadow=overlay.get("shadow", True),
+                    shadow_color=overlay.get("shadow_color", "#000000"),
+                    shadow_offset=tuple(overlay.get("shadow_offset", (2, 2))),
+                    outline=overlay.get("outline", False),
+                    outline_color=overlay.get("outline_color", "#000000"),
+                    outline_width=overlay.get("outline_width", 2),
+                    background_box=overlay.get("background_box", False),
+                    background_color=overlay.get("background_color", "#000000"),
+                    background_opacity=overlay.get("background_opacity", 128)
+                )
+                text_configs.append(config)
+            
+            # Apply text overlay
+            processed_image = text_overlay_service.add_text_overlay(image_url, text_configs)
+            
+            # Convert to base64 data URL
+            import base64
+            base64_image = base64.b64encode(processed_image).decode('utf-8')
+            return f"data:image/png;base64,{base64_image}"
+            
+        except Exception as e:
+            print(f"Error generating image with text overlay: {e}")
+            return None
+    
+    async def generate_marketing_image(self,
+                                     background_description: str,
+                                     headline: str,
+                                     subtext: Optional[str] = None,
+                                     cta: Optional[str] = None,
+                                     provider: str = "openai") -> Optional[str]:
+        """
+        Generate a marketing image with text overlay
+        
+        Args:
+            background_description: Description of the background scene
+            headline: Main headline text
+            subtext: Optional subtitle
+            cta: Optional call-to-action
+            provider: Image generation provider
+            
+        Returns:
+            Base64 encoded image data URL or None if failed
+        """
+        try:
+            # Generate background image
+            image_url = await self.generate_image(background_description + ". No text.", provider)
+            if not image_url:
+                return None
+            
+            # Apply marketing text layout
+            processed_image = text_overlay_service.add_marketing_text(
+                image_url,
+                headline,
+                subtext,
+                cta
+            )
+            
+            # Convert to base64 data URL
+            import base64
+            base64_image = base64.b64encode(processed_image).decode('utf-8')
+            return f"data:image/png;base64,{base64_image}"
+            
+        except Exception as e:
+            print(f"Error generating marketing image: {e}")
+            return None
 
 image_service = ImageGenerationService()

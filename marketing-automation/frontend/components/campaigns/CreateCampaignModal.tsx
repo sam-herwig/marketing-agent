@@ -7,6 +7,7 @@ import api from '@/lib/api'
 import { instagramAPI, InstagramAccount } from '@/lib/instagram'
 import { getTemplates, ContentTemplate } from '@/lib/cms'
 import ImageModal from '@/components/ui/ImageModal'
+import TextOverlayEditorV2, { TextLayer } from '@/components/text-overlay/TextOverlayEditorV2'
 
 interface CreateCampaignModalProps {
   isOpen: boolean
@@ -35,6 +36,8 @@ export default function CreateCampaignModal({ isOpen, onClose, onSuccess }: Crea
   const [instagramAccounts, setInstagramAccounts] = useState<InstagramAccount[]>([])
   const [contentTemplates, setContentTemplates] = useState<ContentTemplate[]>([])
   const [selectedTemplate, setSelectedTemplate] = useState<ContentTemplate | null>(null)
+  const [showTextOverlay, setShowTextOverlay] = useState(false)
+  const [textLayers, setTextLayers] = useState<TextLayer[]>([])
   const [formData, setFormData] = useState({
     name: '',
     description: '',
@@ -50,7 +53,8 @@ export default function CreateCampaignModal({ isOpen, onClose, onSuccess }: Crea
     instagram_account_id: null as number | null,
     instagram_caption: '',
     instagram_hashtags: [] as string[],
-    instagram_publish: false
+    instagram_publish: false,
+    text_overlay_config: null as any
   })
 
   useEffect(() => {
@@ -257,7 +261,8 @@ export default function CreateCampaignModal({ isOpen, onClose, onSuccess }: Crea
       instagram_account_id: null,
       instagram_caption: '',
       instagram_hashtags: [],
-      instagram_publish: false
+      instagram_publish: false,
+      text_overlay_config: null
     })
     setImagePrompt('')
     setEditImagePrompt('')
@@ -267,6 +272,8 @@ export default function CreateCampaignModal({ isOpen, onClose, onSuccess }: Crea
     setUseSplitPrompts(false)
     setBackgroundPrompt('')
     setTextPrompt('')
+    setShowTextOverlay(false)
+    setTextLayers([])
   }
 
   return (
@@ -573,6 +580,13 @@ export default function CreateCampaignModal({ isOpen, onClose, onSuccess }: Crea
                                       </button>
                                       <button
                                         type="button"
+                                        onClick={() => setShowTextOverlay(true)}
+                                        className="text-sm text-green-600 hover:text-green-700 font-medium"
+                                      >
+                                        Add text overlay
+                                      </button>
+                                      <button
+                                        type="button"
                                         onClick={() => setShowImageModal(true)}
                                         className="text-sm text-blue-600 hover:text-blue-700 font-medium"
                                       >
@@ -775,6 +789,72 @@ export default function CreateCampaignModal({ isOpen, onClose, onSuccess }: Crea
         isOpen={showImageModal}
         onClose={() => setShowImageModal(false)}
       />
+    )}
+    
+    {/* Text Overlay Modal */}
+    {showTextOverlay && formData.image_url && (
+      <Transition.Root show={showTextOverlay} as={Fragment}>
+        <Dialog as="div" className="relative z-50" onClose={() => setShowTextOverlay(false)}>
+          <Transition.Child
+            as={Fragment}
+            enter="ease-out duration-300"
+            enterFrom="opacity-0"
+            enterTo="opacity-100"
+            leave="ease-in duration-200"
+            leaveFrom="opacity-100"
+            leaveTo="opacity-0"
+          >
+            <div className="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity" />
+          </Transition.Child>
+
+          <div className="fixed inset-0 z-10 overflow-y-auto">
+            <div className="flex min-h-full items-center justify-center p-4">
+              <Transition.Child
+                as={Fragment}
+                enter="ease-out duration-300"
+                enterFrom="opacity-0 translate-y-4 sm:translate-y-0 sm:scale-95"
+                enterTo="opacity-100 translate-y-0 sm:scale-100"
+                leave="ease-in duration-200"
+                leaveFrom="opacity-100 translate-y-0 sm:scale-100"
+                leaveTo="opacity-0 translate-y-4 sm:translate-y-0 sm:scale-95"
+              >
+                <Dialog.Panel className="relative transform overflow-hidden rounded-lg bg-white shadow-xl transition-all max-w-7xl w-full">
+                  <div className="bg-white px-4 pt-5 pb-4 sm:p-6">
+                    <div className="absolute right-0 top-0 pr-4 pt-4">
+                      <button
+                        type="button"
+                        className="rounded-md bg-white text-gray-400 hover:text-gray-500"
+                        onClick={() => setShowTextOverlay(false)}
+                      >
+                        <span className="sr-only">Close</span>
+                        <XMarkIcon className="h-6 w-6" aria-hidden="true" />
+                      </button>
+                    </div>
+                    
+                    <Dialog.Title as="h3" className="text-lg leading-6 font-medium text-gray-900 mb-6">
+                      Add Text Overlay
+                    </Dialog.Title>
+                    
+                    <TextOverlayEditorV2
+                      imageUrl={formData.image_url}
+                      initialLayers={textLayers}
+                      onSave={(imageData, layers) => {
+                        setFormData({ 
+                          ...formData, 
+                          image_url: imageData,
+                          text_overlay_config: layers
+                        })
+                        setTextLayers(layers)
+                        setShowTextOverlay(false)
+                      }}
+                    />
+                  </div>
+                </Dialog.Panel>
+              </Transition.Child>
+            </div>
+          </div>
+        </Dialog>
+      </Transition.Root>
     )}
   </>
 )

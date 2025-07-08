@@ -3,7 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
 import asyncio
 from app.core.config import settings
-from app.api import auth, users, campaigns, webhooks, n8n, instagram, stripe, monitoring, scheduling, cms
+from app.api import auth, users, campaigns, webhooks, n8n, instagram, stripe, monitoring, scheduling, cms, images
 from app.models.database import engine, Base
 from app.models.user import User
 from app.models.campaign import Campaign, CampaignExecution
@@ -13,7 +13,7 @@ from app.services.scheduler import start_scheduler
 from app.services.campaign_scheduler import campaign_scheduler
 from app.services.monitoring_service import setup_logging, LoggingMiddleware
 from app.middleware.rate_limit import (
-    limiter, custom_rate_limit_exceeded_handler, RateLimits, RateLimitMiddleware
+    limiter, custom_rate_limit_exceeded_handler, RateLimits
 )
 from slowapi.errors import RateLimitExceeded
 
@@ -40,9 +40,6 @@ app.add_exception_handler(RateLimitExceeded, custom_rate_limit_exceeded_handler)
 
 # Add logging middleware
 app.add_middleware(LoggingMiddleware)
-
-# Add rate limiting middleware
-app.add_middleware(RateLimitMiddleware)
 
 # Configure rate limiter
 app.state.limiter = limiter
@@ -76,6 +73,7 @@ app.include_router(stripe.router, prefix="/api", tags=["payments"])
 app.include_router(monitoring.router, prefix="/api", tags=["monitoring"])
 app.include_router(scheduling.router, prefix="/api", tags=["scheduling"])
 app.include_router(cms.router, prefix="/api/cms", tags=["cms"])
+app.include_router(images.router, prefix="/api/images", tags=["images"])
 
 @app.get("/")
 def read_root():

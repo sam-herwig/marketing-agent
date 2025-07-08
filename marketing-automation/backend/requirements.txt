@@ -33,3 +33,6 @@ aioredis==2.0.1
 
 # Rate limiting
 slowapi==0.1.9
+
+# Image processing
+Pillow==10.2.0
