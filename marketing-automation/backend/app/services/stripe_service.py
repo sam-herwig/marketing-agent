@@ -357,6 +357,10 @@ class StripeService:
                 await StripeService._handle_invoice_paid(db, event_data["data"]["object"])
             elif event_type == "invoice.payment_failed":
                 await StripeService._handle_invoice_payment_failed(db, event_data["data"]["object"])
+            elif event_type == "customer.discount.created":
+                await StripeService._handle_discount_created(db, event_data["data"]["object"])
+            elif event_type == "customer.discount.deleted":
+                await StripeService._handle_discount_deleted(db, event_data["data"]["object"])
             
             # Mark as processed
             event.processed = True
@@ -435,3 +439,251 @@ class StripeService:
         # Implementation for payment failed webhook
         # Could send notification, update subscription status, etc.
         pass
+    
+    @staticmethod
+    async def _handle_discount_created(db: Session, discount_data: Dict[str, Any]) -> None:
+        """Handle discount created event"""
+        from app.models.discount import DiscountUsage
+        
+        # Log discount application
+        customer = db.query(Customer).filter(
+            Customer.stripe_customer_id == discount_data["customer"]
+        ).first()
+        
+        if customer and discount_data.get("coupon"):
+            logger.info(f"Discount {discount_data['coupon']['id']} applied to customer {customer.id}")
+    
+    @staticmethod
+    async def _handle_discount_deleted(db: Session, discount_data: Dict[str, Any]) -> None:
+        """Handle discount deleted event"""
+        # Log discount removal
+        customer = db.query(Customer).filter(
+            Customer.stripe_customer_id == discount_data["customer"]
+        ).first()
+        
+        if customer:
+            logger.info(f"Discount removed from customer {customer.id}")
+    
+    @staticmethod
+    async def create_coupon(
+        code: str,
+        percent_off: Optional[int] = None,
+        amount_off: Optional[int] = None,
+        currency: str = "usd",
+        duration: str = "once",
+        duration_in_months: Optional[int] = None,
+        max_redemptions: Optional[int] = None,
+        metadata: Optional[Dict[str, Any]] = None
+    ) -> Dict[str, Any]:
+        """Create a Stripe coupon"""
+        try:
+            coupon_data = {
+                "id": code.upper().replace(" ", "_"),  # Stripe coupon ID
+                "duration": duration,
+                "metadata": metadata or {}
+            }
+            
+            if percent_off:
+                coupon_data["percent_off"] = percent_off
+            elif amount_off:
+                coupon_data["amount_off"] = amount_off * 100  # Convert to cents
+                coupon_data["currency"] = currency
+            else:
+                raise ValueError("Either percent_off or amount_off must be provided")
+            
+            if duration == "repeating" and duration_in_months:
+                coupon_data["duration_in_months"] = duration_in_months
+            
+            if max_redemptions:
+                coupon_data["max_redemptions"] = max_redemptions
+            
+            coupon = stripe.Coupon.create(**coupon_data)
+            logger.info(f"Created Stripe coupon: {coupon.id}")
+            return coupon
+            
+        except stripe.error.StripeError as e:
+            logger.error(f"Stripe error creating coupon: {str(e)}")
+            raise
+    
+    @staticmethod
+    async def create_promotion_code(
+        coupon_id: str,
+        code: str,
+        max_redemptions: Optional[int] = None,
+        expires_at: Optional[datetime] = None,
+        first_time_transaction: bool = False,
+        minimum_amount: Optional[int] = None,
+        metadata: Optional[Dict[str, Any]] = None
+    ) -> Dict[str, Any]:
+        """Create a Stripe promotion code"""
+        try:
+            promo_data = {
+                "coupon": coupon_id,
+                "code": code.upper(),
+                "metadata": metadata or {}
+            }
+            
+            if max_redemptions:
+                promo_data["max_redemptions"] = max_redemptions
+            
+            if expires_at:
+                promo_data["expires_at"] = int(expires_at.timestamp())
+            
+            restrictions = {}
+            if first_time_transaction:
+                restrictions["first_time_transaction"] = True
+            
+            if minimum_amount:
+                restrictions["minimum_amount"] = minimum_amount * 100  # Convert to cents
+                restrictions["minimum_amount_currency"] = "usd"
+            
+            if restrictions:
+                promo_data["restrictions"] = restrictions
+            
+            promotion_code = stripe.PromotionCode.create(**promo_data)
+            logger.info(f"Created Stripe promotion code: {promotion_code.code}")
+            return promotion_code
+            
+        except stripe.error.StripeError as e:
+            logger.error(f"Stripe error creating promotion code: {str(e)}")
+            raise
+    
+    @staticmethod
+    async def apply_discount_to_subscription(
+        db: Session,
+        subscription: Subscription,
+        discount_code: str
+    ) -> Subscription:
+        """Apply a discount code to an existing subscription"""
+        try:
+            # First, try to find the promotion code
+            promotion_codes = stripe.PromotionCode.list(code=discount_code, limit=1)
+            
+            if promotion_codes.data:
+                promotion_code = promotion_codes.data[0]
+                coupon_id = promotion_code.coupon.id
+            else:
+                # Try direct coupon ID
+                coupon_id = discount_code
+            
+            # Apply to subscription
+            stripe_subscription = stripe.Subscription.modify(
+                subscription.stripe_subscription_id,
+                coupon=coupon_id
+            )
+            
+            logger.info(f"Applied discount {discount_code} to subscription {subscription.id}")
+            return subscription
+            
+        except stripe.error.StripeError as e:
+            logger.error(f"Stripe error applying discount: {str(e)}")
+            raise
+    
+    @staticmethod
+    async def validate_promotion_code(code: str) -> Optional[Dict[str, Any]]:
+        """Validate if a promotion code is active and usable"""
+        try:
+            promotion_codes = stripe.PromotionCode.list(code=code.upper(), limit=1)
+            
+            if not promotion_codes.data:
+                return None
+            
+            promo_code = promotion_codes.data[0]
+            
+            # Check if active
+            if not promo_code.active:
+                return None
+            
+            # Check expiration
+            if promo_code.expires_at and promo_code.expires_at < datetime.utcnow().timestamp():
+                return None
+            
+            # Check redemption limit
+            if promo_code.max_redemptions and promo_code.times_redeemed >= promo_code.max_redemptions:
+                return None
+            
+            return {
+                "id": promo_code.id,
+                "code": promo_code.code,
+                "coupon": promo_code.coupon,
+                "active": promo_code.active,
+                "expires_at": datetime.fromtimestamp(promo_code.expires_at) if promo_code.expires_at else None,
+                "max_redemptions": promo_code.max_redemptions,
+                "times_redeemed": promo_code.times_redeemed,
+                "restrictions": promo_code.restrictions
+            }
+            
+        except stripe.error.StripeError as e:
+            logger.error(f"Stripe error validating promotion code: {str(e)}")
+            return None
+    
+    @staticmethod
+    async def create_subscription_with_discount(
+        db: Session,
+        customer: Customer,
+        tier: PricingTier,
+        discount_code: Optional[str] = None,
+        payment_method_id: Optional[str] = None
+    ) -> Subscription:
+        """Create a subscription with an optional discount code"""
+        try:
+            price_id = settings.PRICING_TIERS[tier.value]["price_id"]
+            
+            # Attach payment method if provided
+            if payment_method_id:
+                stripe.PaymentMethod.attach(
+                    payment_method_id,
+                    customer=customer.stripe_customer_id
+                )
+                
+                # Set as default payment method
+                stripe.Customer.modify(
+                    customer.stripe_customer_id,
+                    invoice_settings={"default_payment_method": payment_method_id}
+                )
+            
+            # Prepare subscription data
+            subscription_data = {
+                "customer": customer.stripe_customer_id,
+                "items": [{"price": price_id}],
+                "expand": ["latest_invoice", "default_payment_method"]
+            }
+            
+            # Apply discount if provided
+            if discount_code:
+                # First, try to find the promotion code
+                promotion_codes = stripe.PromotionCode.list(code=discount_code.upper(), limit=1)
+                
+                if promotion_codes.data:
+                    subscription_data["promotion_code"] = promotion_codes.data[0].id
+                else:
+                    # Try direct coupon ID
+                    subscription_data["coupon"] = discount_code
+            
+            # Create Stripe subscription
+            stripe_subscription = stripe.Subscription.create(**subscription_data)
+            
+            # Create database subscription record
+            subscription = Subscription(
+                customer_id=customer.id,
+                stripe_subscription_id=stripe_subscription.id,
+                stripe_price_id=price_id,
+                tier=tier,
+                status=SubscriptionStatus(stripe_subscription.status),
+                current_period_start=datetime.fromtimestamp(stripe_subscription.current_period_start),
+                current_period_end=datetime.fromtimestamp(stripe_subscription.current_period_end)
+            )
+            db.add(subscription)
+            db.commit()
+            db.refresh(subscription)
+            
+            logger.info(f"Created subscription {stripe_subscription.id} for customer {customer.id} with discount {discount_code}")
+            return subscription
+            
+        except stripe.error.StripeError as e:
+            logger.error(f"Stripe error creating subscription with discount: {str(e)}")
+            raise
+        except Exception as e:
+            logger.error(f"Error creating subscription with discount: {str(e)}")
+            db.rollback()
+            raise

@@ -3,7 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
 import asyncio
 from app.core.config import settings
-from app.api import auth, users, campaigns, webhooks, n8n, instagram, stripe, monitoring, scheduling, cms, images
+from app.api import auth, users, campaigns, webhooks, n8n, instagram, stripe, monitoring, scheduling, cms, images, discounts
 from app.models.database import engine, Base
 from app.models.user import User
 from app.models.campaign import Campaign, CampaignExecution
@@ -74,6 +74,7 @@ app.include_router(monitoring.router, prefix="/api", tags=["monitoring"])
 app.include_router(scheduling.router, prefix="/api", tags=["scheduling"])
 app.include_router(cms.router, prefix="/api/cms", tags=["cms"])
 app.include_router(images.router, prefix="/api/images", tags=["images"])
+app.include_router(discounts.router, prefix="/api", tags=["discounts"])
 
 @app.get("/")
 def read_root():

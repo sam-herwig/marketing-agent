@@ -93,10 +93,15 @@ async def create_subscription(
     if active_subscription:
         raise HTTPException(status_code=400, detail="Active subscription already exists")
     
-    # Create subscription
-    subscription = await StripeService.create_subscription(
-        db, customer, request.tier, request.payment_method_id
-    )
+    # Create subscription with optional discount
+    if hasattr(request, 'discount_code') and request.discount_code:
+        subscription = await StripeService.create_subscription_with_discount(
+            db, customer, request.tier, request.discount_code, request.payment_method_id
+        )
+    else:
+        subscription = await StripeService.create_subscription(
+            db, customer, request.tier, request.payment_method_id
+        )
     
     return subscription
 

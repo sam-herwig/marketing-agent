@@ -7,6 +7,10 @@ from app.models.payment import (
     UsageRecord, PaymentEvent, SubscriptionStatus, PaymentStatus, PricingTier
 )
 from app.models.cms import ContentTemplate, ContentBlock, MediaAsset, TemplateBlock, ContentType, MediaType
+from app.models.discount import (
+    Discount, DiscountUsage, DiscountRestriction,
+    DiscountType, DiscountDuration, DiscountStatus, RestrictionType
+)
 
 __all__ = [
     "Base",
@@ -39,4 +43,11 @@ __all__ = [
     "TemplateBlock",
     "ContentType",
     "MediaType",
+    "Discount",
+    "DiscountUsage",
+    "DiscountRestriction",
+    "DiscountType",
+    "DiscountDuration",
+    "DiscountStatus",
+    "RestrictionType",
 ]

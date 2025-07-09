@@ -65,6 +65,7 @@ class InvoiceResponse(BaseModel):
 class CreateSubscriptionRequest(BaseModel):
     tier: PricingTier
     payment_method_id: Optional[str] = None
+    discount_code: Optional[str] = None
 
 
 class UpdateSubscriptionRequest(BaseModel):
